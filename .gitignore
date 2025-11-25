@@ -57,6 +57,7 @@ coverage/
 *.lcov
 
 # Electron packaged output
+release/
 *.asar
 *.exe
 *.dmg

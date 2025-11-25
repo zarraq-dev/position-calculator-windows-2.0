@@ -13,7 +13,34 @@
     "test:logic": "vitest run tests/calculations.test.ts",
     "test:ui": "vitest run tests/Calculator.test.tsx",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "dist": "npm run build:electron && electron-builder --win portable",
+    "dist:installer": "npm run build:electron && electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.positioncalculator.app",
+    "productName": "Position Calculator",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": null,
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "PositionCalculator.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "artifactName": "PositionCalculator-Setup.exe"
+    }
   },
   "keywords": [
     "trading",
@@ -31,6 +58,7 @@
     "@types/react-dom": "^19.2.3",
     "copyfiles": "^2.4.1",
     "electron": "^39.2.3",
+    "electron-builder": "^26.0.12",
     "esbuild": "^0.27.0",
     "jsdom": "^27.2.0",
     "react": "^19.2.0",
