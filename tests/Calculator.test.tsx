@@ -116,7 +116,7 @@ describe('Calculator Component - Calculation', () =>
 
         // ASSERT: Check that error modal backdrop is displayed
         expect(screen.getByText(/stop loss must be below entry price for long positions/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
+        expect(document.querySelector('.modal-close-button')).toBeInTheDocument();
     });
 });
 
@@ -170,7 +170,7 @@ describe('Calculator Component - Validation', () =>
 
         // ASSERT: Check that error modal is displayed
         expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
+        expect(document.querySelector('.modal-close-button')).toBeInTheDocument();
     });
 
     it('Test 12: Enter key triggers calculation', () =>
@@ -237,12 +237,13 @@ describe('Calculator Component - Error Modal Functionality', () =>
         // Verify modal is visible
         expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
 
-        // ACT: Click close button
-        fireEvent.click(screen.getByRole('button', { name: /close/i }));
+        // ACT: Click modal close button
+        const modalCloseButton_element = document.querySelector('.modal-close-button') as HTMLButtonElement; // Modal close button element
+        fireEvent.click(modalCloseButton_element);
 
         // ASSERT: Check that modal is no longer displayed
         expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
+        expect(document.querySelector('.modal-close-button')).not.toBeInTheDocument();
     });
 
     it('Test 16: ESC key closes error modal', () =>
@@ -259,7 +260,7 @@ describe('Calculator Component - Error Modal Functionality', () =>
 
         // ASSERT: Check that modal is no longer displayed
         expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
+        expect(document.querySelector('.modal-close-button')).not.toBeInTheDocument();
     });
 
     it('Test 17: Enter key closes error modal', () =>
@@ -277,6 +278,6 @@ describe('Calculator Component - Error Modal Functionality', () =>
 
         // ASSERT: Check that modal is no longer displayed
         expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /close/i })).not.toBeInTheDocument();
+        expect(document.querySelector('.modal-close-button')).not.toBeInTheDocument();
     });
 });
