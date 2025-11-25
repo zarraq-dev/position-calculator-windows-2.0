@@ -9,7 +9,9 @@
     "build:electron": "npm run build && npm run bundle:renderer && npm run copy:assets",
     "bundle:renderer": "node build-renderer.js",
     "copy:assets": "copyfiles -u 1 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" dist",
-    "test": "vitest run",
+    "test": "vitest run tests/calculations.test.ts tests/Calculator.test.tsx",
+    "test:logic": "vitest run tests/calculations.test.ts",
+    "test:ui": "vitest run tests/Calculator.test.tsx",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
