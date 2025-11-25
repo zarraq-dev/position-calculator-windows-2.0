@@ -3,6 +3,7 @@
  * Following pragmatic TDD approach - tests written to verify behavior
  */
 
+import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Calculator from '../src/renderer/components/Calculator';

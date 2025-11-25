@@ -24,6 +24,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@types/jsdom": "^27.0.0",
     "@types/react": "^19.2.7",
