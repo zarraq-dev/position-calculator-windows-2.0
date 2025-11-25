@@ -1,6 +1,1 @@
-/**
- * Test Setup File
- * Configures the testing environment for React Testing Library
- */
-
-import '@testing-library/react';
+import '@testing-library/jest-dom';
