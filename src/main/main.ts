@@ -3,7 +3,7 @@
  * Creates the main application window and handles app lifecycle
  */
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 
 /**
@@ -13,16 +13,19 @@ import * as path from 'path';
 function createWindow(): void
 {
     const mainWindow_instance: BrowserWindow = new BrowserWindow({
-        width: 420, // Initial window width
-        height: 520, // Initial window height
-        minWidth: 350, // Minimum window width
-        minHeight: 450, // Minimum window height
+        width: 290, // Initial window width
+        height: 420, // Initial window height (increased for close button)
+        minWidth: 270, // Minimum window width
+        minHeight: 380, // Minimum window height
         resizable: true, // Window is resizable (default, but explicit for clarity)
-        backgroundColor: '#1a1a2e', // Dark background color
+        transparent: true, // Enable window transparency
+        frame: false, // Remove window frame for custom look
+        backgroundColor: '#00000000', // Fully transparent background
         autoHideMenuBar: true, // Hide menu bar
         webPreferences: {
             nodeIntegration: false, // Disable node integration for security
-            contextIsolation: true // Enable context isolation for security
+            contextIsolation: true, // Enable context isolation for security
+            preload: path.join(__dirname, 'preload.js') // Load preload script
         }
     });
 
@@ -33,6 +36,16 @@ function createWindow(): void
     const s_htmlPath: string = path.join(__dirname, '../renderer/index.html'); // Path to HTML file
     mainWindow_instance.loadFile(s_htmlPath);
 }
+
+// Handle close window IPC message from renderer
+ipcMain.on('close-window', () =>
+{
+    const focusedWindow_instance: BrowserWindow | null = BrowserWindow.getFocusedWindow(); // Get currently focused window
+    if (focusedWindow_instance)
+    {
+        focusedWindow_instance.close(); // Close the window
+    }
+});
 
 // Create window when Electron is ready
 app.whenReady().then(() =>
