@@ -21,6 +21,7 @@ function createWindow(): void
         transparent: true, // Enable window transparency
         frame: false, // Remove window frame for custom look
         backgroundColor: '#00000000', // Fully transparent background
+        alwaysOnTop: true, // Keep window above all other windows
         autoHideMenuBar: true, // Hide menu bar
         webPreferences: {
             nodeIntegration: false, // Disable node integration for security
