@@ -4,7 +4,7 @@
  * No number pad - keyboard input only
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { calculatePosition } from '../../shared/calculations';
 import type { TradeDirection, CalculationResult, CalculationError } from '../../shared/types';
 import InputField from './InputField';
@@ -27,7 +27,58 @@ export default function Calculator(): React.ReactElement
     const [s_errorMessage, setErrorMessage] = useState<string>(''); // Error message if calculation fails
     const [b_showErrorModal, setShowErrorModal] = useState<boolean>(false); // Whether error modal should be visible
 
-    // STEP 3: Handle calculate button click
+    // Auto-focus on Entry Price field when component mounts
+    useEffect(() =>
+    {
+        const entryPriceField_element: HTMLElement | null = document.getElementById('entryPrice'); // Get entry price input
+        if (entryPriceField_element)
+        {
+            entryPriceField_element.focus(); // Focus the entry price field
+        }
+    }, []); // Empty dependency array - runs once on mount
+
+    // Array of input field IDs in order for arrow key navigation
+    const array_s_fieldIds: string[] = ['entryPrice', 'targetPrice', 'stopLoss', 'riskAmount', 'direction'];
+
+    // STEP 3: Handle arrow key navigation between input fields
+    const handleArrowNavigation = (event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>): void =>
+    {
+        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')
+        {
+            return; // Only handle arrow up/down keys
+        }
+
+        event.preventDefault(); // Prevent default scrolling behavior
+
+        const s_currentId: string = (event.target as HTMLElement).id; // Get current field ID
+        const n_currentIndex: number = array_s_fieldIds.indexOf(s_currentId); // Find current index
+
+        if (n_currentIndex === -1)
+        {
+            return; // Current field not in list
+        }
+
+        let n_nextIndex: number = n_currentIndex; // Initialize next index
+
+        if (event.key === 'ArrowUp')
+        {
+            n_nextIndex = n_currentIndex > 0 ? n_currentIndex - 1 : array_s_fieldIds.length - 1; // Move up, wrap to bottom
+        }
+        else if (event.key === 'ArrowDown')
+        {
+            n_nextIndex = n_currentIndex < array_s_fieldIds.length - 1 ? n_currentIndex + 1 : 0; // Move down, wrap to top
+        }
+
+        const s_nextFieldId: string = array_s_fieldIds[n_nextIndex]; // Get next field ID
+        const nextField_element: HTMLElement | null = document.getElementById(s_nextFieldId); // Find next field element
+
+        if (nextField_element)
+        {
+            nextField_element.focus(); // Focus the next field
+        }
+    };
+
+    // STEP 4: Handle calculate button click
     const handleCalculate = (): void =>
     {
         // Clear previous results and errors
@@ -139,6 +190,7 @@ export default function Calculator(): React.ReactElement
                     s_id="entryPrice"
                     s_value={s_entryPrice}
                     onChange={setEntryPrice}
+                    onKeyDown={handleArrowNavigation}
                 />
 
                 <InputField
@@ -146,6 +198,7 @@ export default function Calculator(): React.ReactElement
                     s_id="targetPrice"
                     s_value={s_targetPrice}
                     onChange={setTargetPrice}
+                    onKeyDown={handleArrowNavigation}
                 />
 
                 <InputField
@@ -153,6 +206,7 @@ export default function Calculator(): React.ReactElement
                     s_id="stopLoss"
                     s_value={s_stopLoss}
                     onChange={setStopLoss}
+                    onKeyDown={handleArrowNavigation}
                 />
 
                 <InputField
@@ -160,6 +214,7 @@ export default function Calculator(): React.ReactElement
                     s_id="riskAmount"
                     s_value={s_riskAmount}
                     onChange={setRiskAmount}
+                    onKeyDown={handleArrowNavigation}
                 />
 
                 {/* Direction Dropdown */}
@@ -169,6 +224,7 @@ export default function Calculator(): React.ReactElement
                         id="direction"
                         value={s_direction}
                         onChange={(e) => setDirection(e.target.value as TradeDirection)}
+                        onKeyDown={handleArrowNavigation}
                     >
                         <option value="Long">Long</option>
                         <option value="Short">Short</option>
@@ -202,6 +258,14 @@ export default function Calculator(): React.ReactElement
                     </span>
                 </div>
             </div>
+
+            {/* Close Window Button */}
+            <button
+                className="close-window-button"
+                onClick={() => window.electronAPI?.closeWindow()}
+            >
+                Close
+            </button>
 
             {/* Error Modal Display */}
             <ErrorModal
