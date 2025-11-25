@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+out/
+
+# Source map files (but NOT .js files - we need build-renderer.js)
+*.js.map
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE - Visual Studio Code
+.vscode/
+*.code-workspace
+
+# IDE - JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE - Other
+*.swp
+*.swo
+*~
+
+# OS - Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# OS - macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# OS - Linux
+.directory
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Electron packaged output
+*.asar
+*.exe
+*.dmg
+*.app
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
