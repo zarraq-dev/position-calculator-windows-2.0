@@ -1,0 +1,49 @@
+# =============================================================================
+# Test Workflow
+# =============================================================================
+# Purpose: Runs the full test suite to validate code quality before merging
+#
+# Triggers:
+#   - Pull Requests: Automatically runs when a PR targets the main branch
+#   - Manual: Can be triggered manually from GitHub Actions tab (workflow_dispatch)
+#
+# Note: Does NOT run on every push. We test locally during development,
+#       so automated tests only run when code is ready for review (PR) or
+#       when manually triggered for verification.
+# =============================================================================
+
+name: Run Tests
+
+on:
+  # Run tests automatically on pull requests to main branch
+  pull_request:
+    branches: [main]
+
+  # Allow manual triggering from GitHub Actions tab
+  # Useful for running tests on any branch without creating a PR
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Use latest Ubuntu runner for consistent Linux environment
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js environment with npm caching for faster installs
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'  # Caches npm dependencies based on package-lock.json
+
+      # Step 3: Install dependencies using clean install (ci) for reproducible builds
+      - name: Install dependencies
+        run: npm ci  # Uses package-lock.json for exact versions
+
+      # Step 4: Execute the full test suite
+      - name: Run all tests
+        run: npm test

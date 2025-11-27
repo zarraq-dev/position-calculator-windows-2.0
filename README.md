@@ -1,25 +1,50 @@
-# Position Calculator Windows 2.0
+# Position Calculator
 
-A desktop application for calculating trading position sizes and reward:risk ratios with precision and ease.
+A lightweight Windows desktop application for calculating trading position sizes and reward:risk ratios.
 
 ## Overview
 
-Position Calculator is a Windows desktop application that helps traders determine optimal position sizes based on their risk parameters. The application calculates position sizing using entry price, target price, stop-loss, and risk amount, supporting both long and short trading strategies.
-
-Built with modern technologies and a modular architecture, the application provides accurate calculations with an intuitive, professional interface.
+Position Calculator helps traders determine optimal position sizes based on their risk parameters. Enter your entry price, target price, stop-loss, and risk amount to instantly calculate position sizing for both long and short trades.
 
 ## Features
 
-### Current Features
 - Calculate position size based on risk parameters
 - Calculate reward:risk ratio for trade evaluation
 - Support for both long and short positions
-- Modern glassmorphic UI with dark mode
-- Real-time input validation
-- Compact always-on-top window for use alongside trading platforms
+- Live currency conversion via Frankfurter API (USD, JPY, CHF to GBP)
+- Multiple instrument categories: FX pairs (by quote currency), Gold, Oil, Indices
+- Input sanitization for whitespace and commas (supports cTrader format)
+- Modern glassmorphic dark theme UI
+- Always-on-top window for use alongside trading platforms
+- Keyboard navigation with arrow keys between fields
+- No installation required (portable executable)
 
-### Planned Features
-[To be added as features are developed and approved]
+## Download
+
+Download the latest `PositionCalculator.exe` from the [Releases](../../releases) page.
+
+No installation required - just download and run.
+
+## Usage
+
+1. Select your **Instrument** (FX pairs by quote currency, Gold, Oil, or Indices)
+2. Enter your **Entry Price** (the price you plan to enter the trade)
+3. Enter your **Stop Loss** (your exit price if the trade goes against you)
+4. Enter your **Target Price** (your profit target)
+5. Enter your **Risk Amount** in GBP (the amount you're willing to lose)
+6. Select **Direction** (Long for buying, Short for selling)
+7. Click **Calculate** or press Enter
+
+The calculator will display:
+- **Lot Size** - Position size to enter in your trading platform
+- **Take Profit** - Your target price for the trade
+- **Reward:Risk** - Ratio of potential profit to potential loss
+
+## Keyboard Shortcuts
+
+- **Arrow Up/Down** - Navigate between input fields
+- **Enter** - Calculate position size
+- **Escape** - Close error modal
 
 ## Technology Stack
 
@@ -27,50 +52,81 @@ Built with modern technologies and a modular architecture, the application provi
 - **React** - UI component library
 - **TypeScript** - Type-safe programming language
 - **Vitest** - Testing framework
-- **React Testing Library** - Component testing
-
-## Installation
-
-[Instructions for installing the application will be added once the .exe installer is created. End users will download and run the installer.]
-
-## Usage
-
-[High-level usage instructions will be added once the UI is finalized, including which fields to enter, which buttons to click, and what results will be calculated and displayed.]
-
-## Test Cases
-
-[This section documents all test cases created for the project. Each test case describes the purpose of the test without implementation details.]
-
-### Business Logic Tests
-[Test cases for calculation logic will be documented here as they are agreed upon and implemented]
-
-### UI Component Tests
-[Test cases for UI behavior will be documented here as they are agreed upon and implemented]
 
 ## Development
 
-[This section will contain information for developers who want to work with the source code, including:
-- How to set up the development environment
-- How to run the application in development mode
-- Development workflow and guidelines]
+### Prerequisites
 
-## Testing
+- Node.js 20 or higher
+- npm
 
-[This section will describe the testing approach and how to run tests, including:
-- How to run the test suite
-- Testing coverage information
-- Testing philosophy and approach]
+### Setup
 
-## Building
+```bash
+# Clone the repository
+git clone https://github.com/zarraq-dev/position-calculator-windows-2.0.git
+cd position-calculator-windows-2.0
 
-[This section will contain instructions for building the application from source, including:
-- Build commands
-- Packaging for distribution
-- Platform-specific build instructions]
+# Install dependencies
+npm install
+```
+
+### Running in Development
+
+```bash
+npm run dev
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run with coverage
+npm run test:coverage
+```
+
+### Building
+
+```bash
+# Build portable executable
+npm run dist
+
+# Build installer
+npm run dist:installer
+```
+
+The executable will be created in the `release/` folder.
 
 ## Project Structure
 
-[A description of the codebase organization will be added once the project structure is finalized, showing the main directories and their purposes.]
+```
+position-calculator-windows-2.0/
+├── src/
+│   ├── main/                 # Electron main process
+│   │   ├── main.ts           # Application entry point
+│   │   └── preload.ts        # Preload script for IPC
+│   ├── renderer/             # React UI (frontend)
+│   │   ├── App.tsx           # Main React component
+│   │   ├── components/       # UI components
+│   │   │   ├── Calculator.tsx
+│   │   │   ├── InputField.tsx
+│   │   │   └── ErrorModal.tsx
+│   │   └── styles/           # CSS styling
+│   │       └── glassmorphic.css
+│   └── shared/               # Shared business logic
+│       ├── calculations.ts   # Position calculation functions
+│       ├── currencyService.ts # Exchange rate fetching via IPC
+│       └── types.ts          # TypeScript interfaces
+├── tests/                    # Test files
+│   ├── calculations.test.ts  # Business logic tests
+│   └── Calculator.test.tsx   # UI component tests
+└── package.json
+```
 
 ## License
 
@@ -78,4 +134,4 @@ Apache License 2.0 - see LICENSE file for details
 
 ---
 
-*Last Updated: 2025-11-25*
+*Last Updated: 2025-11-27*
