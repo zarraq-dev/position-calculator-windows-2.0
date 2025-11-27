@@ -2,13 +2,22 @@
  * Position Size Calculator - Business Logic
  * Contains all calculation functions for position sizing
  *
- * Core Formulas:
- * 1. price_diff = |stop_loss_price - entry_price| (price difference vs stop loss)
- * 2. lot_size = risk_amount / (price_diff * contract_size)
- * 3. quantity = lot_size * contract_size
- * 4. risk = price_diff * quantity (should match user's intended risk)
- * 5. reward = |take_profit_price - entry_price| * quantity
- * 6. risk_reward_ratio = reward / risk
+ * Account Currency: GBP (British Pounds)
+ *
+ * Core Formulas (with currency conversion):
+ * 1. price_diff = |stop_loss_price - entry_price| (in quote currency)
+ * 2. risk_in_quote = risk_amount_gbp / quote_to_gbp_rate (convert GBP risk to quote currency)
+ * 3. lot_size = risk_in_quote / (price_diff * contract_size)
+ * 4. quantity = lot_size * contract_size
+ * 5. risk = price_diff * quantity * quote_to_gbp_rate (convert back to GBP)
+ * 6. reward = |target_price - entry_price| * quantity * quote_to_gbp_rate (convert to GBP)
+ * 7. reward_risk_ratio = reward / risk
+ *
+ * Why currency conversion is needed:
+ * - P&L for a trade is calculated in the quote currency (second currency in the pair)
+ * - For EURUSD: P&L is in USD, for USDJPY: P&L is in JPY
+ * - Account is in GBP, so we need to convert quote currency P&L to GBP
+ * - The conversion rate (quote_to_gbp) tells us how many GBP one unit of quote currency is worth
  */
 
 import type { TradeInput, CalculationResult, CalculationError, InstrumentType } from './types';
@@ -55,6 +64,7 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
     const n_stopLoss: number = tradeInput_data.n_stopLoss; // Stop loss price
     const n_riskAmount: number = tradeInput_data.n_riskAmount; // Amount willing to risk
     const s_direction: string = tradeInput_data.s_direction; // Trade direction (Long/Short)
+    const n_conversionRate: number = tradeInput_data.n_conversionRate; // Quote to GBP conversion rate
 
     // VALIDATION 1: Check for negative price values
     if (n_entryPrice <= 0 || n_targetPrice <= 0 || n_stopLoss <= 0)
@@ -83,10 +93,19 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
         };
     }
 
-    // VALIDATION 4: Direction-specific validations
+    // VALIDATION 4: Check for valid conversion rate
+    if (n_conversionRate <= 0)
+    {
+        return {
+            b_error: true,
+            s_message: 'Currency conversion rate must be a positive number'
+        };
+    }
+
+    // VALIDATION 5: Direction-specific validations
     if (s_direction === 'Long')
     {
-        // VALIDATION 4A: For long trades, stop must be below entry
+        // VALIDATION 5A: For long trades, stop must be below entry
         if (n_stopLoss >= n_entryPrice)
         {
             return {
@@ -95,7 +114,7 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
             };
         }
 
-        // VALIDATION 4B: For long trades, target must be above entry
+        // VALIDATION 5B: For long trades, target must be above entry
         if (n_targetPrice <= n_entryPrice)
         {
             return {
@@ -106,7 +125,7 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
     }
     else if (s_direction === 'Short')
     {
-        // VALIDATION 4C: For short trades, stop must be above entry
+        // VALIDATION 5C: For short trades, stop must be above entry
         if (n_stopLoss <= n_entryPrice)
         {
             return {
@@ -115,7 +134,7 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
             };
         }
 
-        // VALIDATION 4D: For short trades, target must be below entry
+        // VALIDATION 5D: For short trades, target must be below entry
         if (n_targetPrice >= n_entryPrice)
         {
             return {
@@ -131,9 +150,16 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
 
 /**
  * Calculate lot size, quantity, risk, reward, and risk-reward ratio
- * Uses instrument-specific contract sizes for accurate position sizing
+ * Uses instrument-specific contract sizes and currency conversion for accurate position sizing
  *
- * @param tradeInput_data - Trade input data containing prices, risk amount, and instrument
+ * Currency Conversion Logic:
+ * - User's risk is in GBP (account currency)
+ * - Trade P&L is calculated in quote currency (e.g., USD for EURUSD, JPY for USDJPY)
+ * - We need to convert between GBP and quote currency using the conversion rate
+ * - n_conversionRate = how many GBP one unit of quote currency is worth
+ *   Example: If USD/GBP = 0.79, then 1 USD = 0.79 GBP
+ *
+ * @param tradeInput_data - Trade input data containing prices, risk amount, instrument, and conversion rate
  * @returns CalculationResult on success, CalculationError on validation failure
  */
 export function calculatePosition(tradeInput_data: TradeInput): CalculationResult | CalculationError
@@ -142,8 +168,9 @@ export function calculatePosition(tradeInput_data: TradeInput): CalculationResul
     const n_entryPrice: number = tradeInput_data.n_entryPrice; // Entry price for the trade
     const n_targetPrice: number = tradeInput_data.n_targetPrice; // Target price for profit
     const n_stopLoss: number = tradeInput_data.n_stopLoss; // Stop loss price
-    const n_riskAmount: number = tradeInput_data.n_riskAmount; // Amount willing to risk
-    const s_instrument: InstrumentType = tradeInput_data.s_instrument; // Trading instrument
+    const n_riskAmountGBP: number = tradeInput_data.n_riskAmount; // Amount willing to risk (in GBP)
+    const s_instrument: InstrumentType = tradeInput_data.s_instrument; // Trading instrument category
+    const n_quoteToGBPRate: number = tradeInput_data.n_conversionRate; // Exchange rate: 1 quote currency = X GBP
 
     // STEP 2: Validate inputs
     const validationError = validateInputs(tradeInput_data);
@@ -156,31 +183,56 @@ export function calculatePosition(tradeInput_data: TradeInput): CalculationResul
     const instrumentConfig = INSTRUMENT_CONFIGS[s_instrument]; // Get contract size and leverage for instrument
     const n_contractSize: number = instrumentConfig.n_contractSize; // Contract size for the instrument
 
-    // STEP 4: Calculate price difference (price_diff = |stop_loss_price - entry_price|)
-    const n_priceDifference: number = Math.abs(n_stopLoss - n_entryPrice); // Price difference from entry to stop loss
+    // STEP 4: Calculate price difference (in quote currency)
+    // price_diff = |stop_loss_price - entry_price|
+    const n_priceDifferenceToStop: number = Math.abs(n_stopLoss - n_entryPrice); // Price movement to stop loss
 
-    // STEP 5: Calculate lot size (lot_size = risk_amount / (price_diff * contract_size))
-    const n_lotSize: number = roundToDecimals(n_riskAmount / (n_priceDifference * n_contractSize), 2); // Lot size rounded to 2 decimals
+    // STEP 5: Convert risk from GBP to quote currency
+    // If account is GBP and trade P&L is in USD, we need to know how much USD risk equals our GBP risk
+    // risk_in_quote = risk_gbp / quote_to_gbp_rate
+    // Example: 100 GBP risk with USD/GBP = 0.79 means 100/0.79 = 126.58 USD risk
+    const n_riskInQuoteCurrency: number = n_riskAmountGBP / n_quoteToGBPRate;
 
-    // STEP 6: Calculate quantity (quantity = lot_size * contract_size)
-    const n_quantity: number = roundToDecimals(n_lotSize * n_contractSize, 2); // Quantity rounded to 2 decimals
+    // STEP 6: Calculate raw lot size (before rounding)
+    // lot_size = risk_in_quote / (price_diff * contract_size)
+    const n_rawLotSize: number = n_riskInQuoteCurrency / (n_priceDifferenceToStop * n_contractSize);
 
-    // STEP 7: Calculate risk (risk = price_diff * quantity) - should match user's intended risk
-    const n_risk: number = roundToDecimals(n_priceDifference * n_quantity, 2); // Actual risk amount
+    // STEP 7: Round lot size to 2 decimal places (trading platform requirement)
+    const n_lotSize: number = roundToDecimals(n_rawLotSize, 2);
 
-    // STEP 8: Calculate reward (reward = |take_profit_price - entry_price| * quantity)
-    const n_rewardPriceDifference: number = Math.abs(n_targetPrice - n_entryPrice); // Price difference from entry to target
-    const n_reward: number = roundToDecimals(n_rewardPriceDifference * n_quantity, 2); // Reward amount
+    // STEP 8: Handle edge case where lot size rounds to zero
+    // This prevents NaN errors in subsequent calculations
+    if (n_lotSize === 0)
+    {
+        return {
+            b_error: true,
+            s_message: 'Position size too small - lot size rounds to zero. Increase risk amount or widen stop loss.'
+        };
+    }
 
-    // STEP 9: Calculate risk-reward ratio (risk_reward_ratio = reward / risk)
-    const n_rewardRiskRatio: number = roundToDecimals(n_reward / n_risk, 2); // Risk-reward ratio
+    // STEP 9: Calculate quantity (quantity = lot_size * contract_size)
+    const n_quantity: number = roundToDecimals(n_lotSize * n_contractSize, 2); // Units being traded
 
-    // STEP 10: Return successful calculation result
+    // STEP 10: Calculate actual risk in GBP (using rounded lot size)
+    // risk = price_diff * quantity * quote_to_gbp_rate
+    // This converts the quote currency P&L back to account currency (GBP)
+    const n_risk: number = roundToDecimals(n_priceDifferenceToStop * n_quantity * n_quoteToGBPRate, 2);
+
+    // STEP 11: Calculate potential reward in GBP
+    // reward = |target_price - entry_price| * quantity * quote_to_gbp_rate
+    const n_priceDifferenceToTarget: number = Math.abs(n_targetPrice - n_entryPrice); // Price movement to target
+    const n_reward: number = roundToDecimals(n_priceDifferenceToTarget * n_quantity * n_quoteToGBPRate, 2);
+
+    // STEP 12: Calculate risk-reward ratio
+    // risk_reward_ratio = reward / risk
+    const n_rewardRiskRatio: number = roundToDecimals(n_reward / n_risk, 2);
+
+    // STEP 13: Return successful calculation result
     return {
-        n_lotSize: n_lotSize,
-        n_quantity: n_quantity,
-        n_risk: n_risk,
-        n_reward: n_reward,
-        n_rewardRiskRatio: n_rewardRiskRatio
+        n_lotSize: n_lotSize,       // Lot size to enter in platform
+        n_quantity: n_quantity,     // Number of units
+        n_risk: n_risk,             // Risk in GBP
+        n_reward: n_reward,         // Potential reward in GBP
+        n_rewardRiskRatio: n_rewardRiskRatio // Reward:Risk ratio
     };
 }

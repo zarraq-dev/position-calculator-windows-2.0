@@ -1,32 +1,43 @@
 /**
  * Calculator Component
  * Main calculator interface with inputs and results display
- * No number pad - keyboard input only
+ *
+ * Features:
+ * - Form-based input with keyboard navigation (Arrow Up/Down)
+ * - Live currency conversion via Frankfurter API
+ * - Instrument categories grouped by quote currency
+ * - Real-time position size and reward:risk calculation
+ *
+ * Account Currency: GBP (British Pounds)
  */
 
 import React, { useState, useEffect } from 'react';
 import { calculatePosition } from '../../shared/calculations';
+import { getExchangeRate } from '../../shared/currencyService';
+import { INSTRUMENT_CONFIGS } from '../../shared/types';
 import type { TradeDirection, InstrumentType, CalculationResult, CalculationError } from '../../shared/types';
 import InputField from './InputField';
 import ErrorModal from './ErrorModal';
 
 /**
  * Calculator component for position size calculations
+ * Handles user input, currency conversion, and displays results
  */
 export default function Calculator(): React.ReactElement
 {
     // STEP 1: Define state for form inputs
     const [s_entryPrice, setEntryPrice] = useState<string>(''); // Entry price input value
+    const [s_stopLoss, setStopLoss] = useState<string>(''); // Stop loss input value (moved before target)
     const [s_targetPrice, setTargetPrice] = useState<string>(''); // Target price input value
-    const [s_stopLoss, setStopLoss] = useState<string>(''); // Stop loss input value
-    const [s_riskAmount, setRiskAmount] = useState<string>(''); // Risk amount input value
+    const [s_riskAmount, setRiskAmount] = useState<string>(''); // Risk amount input value (in GBP)
     const [s_direction, setDirection] = useState<TradeDirection>('Long'); // Trade direction
-    const [s_instrument, setInstrument] = useState<InstrumentType>('XAUUSD'); // Trading instrument
+    const [s_instrument, setInstrument] = useState<InstrumentType>('XAUUSD'); // Trading instrument category
 
-    // STEP 2: Define state for calculation results
+    // STEP 2: Define state for calculation results and errors
     const [calculationResult_data, setCalculationResult] = useState<CalculationResult | null>(null); // Calculation results
     const [s_errorMessage, setErrorMessage] = useState<string>(''); // Error message if calculation fails
     const [b_showErrorModal, setShowErrorModal] = useState<boolean>(false); // Whether error modal should be visible
+    const [b_isCalculating, setIsCalculating] = useState<boolean>(false); // Loading state during API call
 
     // Auto-focus on Entry Price field when component mounts
     useEffect(() =>
@@ -39,7 +50,8 @@ export default function Calculator(): React.ReactElement
     }, []); // Empty dependency array - runs once on mount
 
     // Array of input field IDs in order for arrow key navigation
-    const array_s_fieldIds: string[] = ['instrument', 'entryPrice', 'targetPrice', 'stopLoss', 'riskAmount', 'direction'];
+    // Order: Instrument -> Entry -> Stop Loss -> Target -> Risk -> Direction
+    const array_s_fieldIds: string[] = ['instrument', 'entryPrice', 'stopLoss', 'targetPrice', 'riskAmount', 'direction'];
 
     // STEP 3: Handle arrow key navigation between input fields
     const handleArrowNavigation = (event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>): void =>
@@ -80,50 +92,75 @@ export default function Calculator(): React.ReactElement
     };
 
     // STEP 4: Handle calculate button click
-    const handleCalculate = (): void =>
+    // This is async because we need to fetch exchange rates from the API
+    const handleCalculate = async (): Promise<void> =>
     {
         // Clear previous results and errors
         setCalculationResult(null);
         setErrorMessage('');
         setShowErrorModal(false);
+        setIsCalculating(true); // Show loading state
 
-        // Parse input values to numbers
-        const n_entryPrice: number = parseFloat(s_entryPrice); // Parsed entry price
-        const n_targetPrice: number = parseFloat(s_targetPrice); // Parsed target price
-        const n_stopLoss: number = parseFloat(s_stopLoss); // Parsed stop loss
-        const n_riskAmount: number = parseFloat(s_riskAmount); // Parsed risk amount
-
-        // Validate that all inputs are valid numbers
-        if (isNaN(n_entryPrice) || isNaN(n_targetPrice) || isNaN(n_stopLoss) || isNaN(n_riskAmount))
+        try
         {
-            setErrorMessage('Please enter valid numbers for all fields');
-            setShowErrorModal(true);
-            return;
+            // Parse input values to numbers
+            const n_entryPrice: number = parseFloat(s_entryPrice); // Parsed entry price
+            const n_targetPrice: number = parseFloat(s_targetPrice); // Parsed target price
+            const n_stopLoss: number = parseFloat(s_stopLoss); // Parsed stop loss
+            const n_riskAmount: number = parseFloat(s_riskAmount); // Parsed risk amount (in GBP)
+
+            // Validate that all inputs are valid numbers
+            if (isNaN(n_entryPrice) || isNaN(n_targetPrice) || isNaN(n_stopLoss) || isNaN(n_riskAmount))
+            {
+                setErrorMessage('Please enter valid numbers for all fields');
+                setShowErrorModal(true);
+                return;
+            }
+
+            // Get the quote currency for the selected instrument
+            const instrumentConfig = INSTRUMENT_CONFIGS[s_instrument]; // Get instrument configuration
+            const s_quoteCurrency = instrumentConfig.s_quoteCurrency; // Quote currency (USD, GBP, JPY, CHF)
+
+            // Fetch the exchange rate for converting quote currency to GBP
+            // For GBP pairs this returns 1.0, for others it fetches from Frankfurter API
+            const n_conversionRate: number = await getExchangeRate(s_quoteCurrency);
+
+            // Call calculation function with all parameters including conversion rate
+            const result = calculatePosition({
+                n_entryPrice,
+                n_targetPrice,
+                n_stopLoss,
+                n_riskAmount,
+                s_direction,
+                s_instrument,
+                n_conversionRate
+            });
+
+            // Check if result is an error
+            if ('b_error' in result)
+            {
+                setErrorMessage((result as CalculationError).s_message);
+                setShowErrorModal(true);
+            }
+            else
+            {
+                setCalculationResult(result as CalculationResult);
+            }
         }
-
-        // Call calculation function
-        const result = calculatePosition({
-            n_entryPrice,
-            n_targetPrice,
-            n_stopLoss,
-            n_riskAmount,
-            s_direction,
-            s_instrument
-        });
-
-        // Check if result is an error
-        if ('b_error' in result)
+        catch (error)
         {
-            setErrorMessage((result as CalculationError).s_message);
+            // Handle any errors (e.g., network failure when fetching rates)
+            const s_errorMsg: string = error instanceof Error ? error.message : 'An unexpected error occurred';
+            setErrorMessage(s_errorMsg);
             setShowErrorModal(true);
         }
-        else
+        finally
         {
-            setCalculationResult(result as CalculationResult);
+            setIsCalculating(false); // Hide loading state
         }
     };
 
-    // STEP 4: Handle Enter key press (context-aware)
+    // STEP 5: Handle Enter key press (context-aware)
     const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void =>
     {
         if (event.key === 'Enter')
@@ -133,34 +170,34 @@ export default function Calculator(): React.ReactElement
             {
                 handleCloseModal(); // Close modal if it's open
             }
-            else
+            else if (!b_isCalculating)
             {
-                handleCalculate(); // Trigger calculation if modal is not open
+                handleCalculate(); // Trigger calculation if modal is not open and not already calculating
             }
         }
     };
 
-    // STEP 5: Handle clear button click
+    // STEP 6: Handle clear button click
     const handleClear = (): void =>
     {
         setEntryPrice('');
-        setTargetPrice('');
         setStopLoss('');
+        setTargetPrice('');
         setRiskAmount('');
         setDirection('Long');
-        setInstrument('XAUUSD');
+        setInstrument('XAUUSD'); // Default to Gold
         setCalculationResult(null);
         setErrorMessage('');
         setShowErrorModal(false);
     };
 
-    // STEP 6: Handle error modal close
+    // STEP 7: Handle error modal close
     const handleCloseModal = (): void =>
     {
         setShowErrorModal(false); // Hide the modal
     };
 
-    // STEP 7: Format reward:risk ratio display
+    // STEP 8: Format reward:risk ratio display
     const formatRewardRiskRatio = (): string =>
     {
         if (!calculationResult_data)
@@ -181,14 +218,14 @@ export default function Calculator(): React.ReactElement
         }
     };
 
-    // STEP 8: Render component
+    // STEP 9: Render component
     return (
         <div className="calculator" onKeyDown={handleKeyDown} tabIndex={0}>
             <h1>Position Size Calculator</h1>
 
             {/* Input Fields Section */}
             <div className="inputs-section">
-                {/* Instrument Dropdown */}
+                {/* Instrument Dropdown - Grouped by quote currency */}
                 <div className="input-group">
                     <label htmlFor="instrument">Instrument:</label>
                     <select
@@ -197,14 +234,20 @@ export default function Calculator(): React.ReactElement
                         onChange={(e) => setInstrument(e.target.value as InstrumentType)}
                         onKeyDown={handleArrowNavigation}
                     >
-                        <option value="EURUSD">EURUSD</option>
-                        <option value="XAUUSD">XAUUSD</option>
-                        <option value="XAGUSD">XAGUSD</option>
-                        <option value="WTI">WTI</option>
-                        <option value="UKOIL">UKOIL</option>
+                        {/* FX pairs grouped by quote currency */}
+                        <option value="FX_GBP">FX (GBP pairs)</option>
+                        <option value="FX_USD">FX (USD pairs)</option>
+                        <option value="FX_JPY">FX (JPY pairs)</option>
+                        <option value="FX_CHF">FX (CHF pairs)</option>
+                        {/* Commodities */}
+                        <option value="XAUUSD">Gold (XAUUSD)</option>
+                        <option value="WTI">Oil (WTI)</option>
+                        {/* Stock Indices */}
+                        <option value="Indices">Stock Indices</option>
                     </select>
                 </div>
 
+                {/* Entry Price - First price input */}
                 <InputField
                     s_label="Entry Price"
                     s_id="entryPrice"
@@ -213,14 +256,7 @@ export default function Calculator(): React.ReactElement
                     onKeyDown={handleArrowNavigation}
                 />
 
-                <InputField
-                    s_label="Target Price"
-                    s_id="targetPrice"
-                    s_value={s_targetPrice}
-                    onChange={setTargetPrice}
-                    onKeyDown={handleArrowNavigation}
-                />
-
+                {/* Stop Loss - Moved before Target Price for logical workflow */}
                 <InputField
                     s_label="Stop Loss"
                     s_id="stopLoss"
@@ -229,6 +265,16 @@ export default function Calculator(): React.ReactElement
                     onKeyDown={handleArrowNavigation}
                 />
 
+                {/* Target Price - After Stop Loss */}
+                <InputField
+                    s_label="Target Price"
+                    s_id="targetPrice"
+                    s_value={s_targetPrice}
+                    onChange={setTargetPrice}
+                    onKeyDown={handleArrowNavigation}
+                />
+
+                {/* Risk Amount - In account currency (GBP) */}
                 <InputField
                     s_label="Risk Amount"
                     s_id="riskAmount"
@@ -237,7 +283,7 @@ export default function Calculator(): React.ReactElement
                     onKeyDown={handleArrowNavigation}
                 />
 
-                {/* Direction Dropdown */}
+                {/* Direction Dropdown - Long or Short */}
                 <div className="input-group">
                     <label htmlFor="direction">Direction:</label>
                     <select
@@ -254,8 +300,12 @@ export default function Calculator(): React.ReactElement
 
             {/* Action Buttons */}
             <div className="action-buttons">
-                <button className="calculate-button" onClick={handleCalculate}>
-                    Calculate
+                <button
+                    className="calculate-button"
+                    onClick={handleCalculate}
+                    disabled={b_isCalculating}
+                >
+                    {b_isCalculating ? 'Calculating...' : 'Calculate'}
                 </button>
                 <button className="clear-button" onClick={handleClear}>
                     Clear

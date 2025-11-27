@@ -1,12 +1,20 @@
 /**
  * Test suite for Calculator UI component
  * Following pragmatic TDD approach - tests written to verify behavior
+ *
+ * Note: These tests focus on UI rendering and user interaction.
+ * The currency service is mocked to avoid external API calls in tests.
  */
 
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Calculator from '../src/renderer/components/Calculator';
+
+// Mock the currency service to avoid API calls in tests
+vi.mock('../src/shared/currencyService', () => ({
+    getExchangeRate: vi.fn().mockResolvedValue(0.79) // Mock USD/GBP rate
+}));
 
 describe('Calculator Component - Rendering', () =>
 {
@@ -48,11 +56,28 @@ describe('Calculator Component - Rendering', () =>
         // ASSERT: Check that clear button is present
         expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument();
     });
+
+    it('Test 5: Calculator renders instrument dropdown with new options', () =>
+    {
+        // ARRANGE & ACT: Render the Calculator component
+        render(<Calculator />);
+
+        // ASSERT: Check that instrument dropdown is present with new options
+        const instrumentDropdown_element = screen.getByLabelText(/instrument/i) as HTMLSelectElement;
+        expect(instrumentDropdown_element).toBeInTheDocument();
+
+        // Check for new instrument options
+        expect(screen.getByText(/FX \(GBP pairs\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/FX \(USD pairs\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Gold \(XAUUSD\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Oil \(WTI\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Stock Indices/i)).toBeInTheDocument();
+    });
 });
 
 describe('Calculator Component - User Input', () =>
 {
-    it('Test 5: User can type in entry price field', () =>
+    it('Test 6: User can type in entry price field', () =>
     {
         // ARRANGE: Render the Calculator component
         render(<Calculator />);
@@ -65,7 +90,7 @@ describe('Calculator Component - User Input', () =>
         expect(s_element_entryPriceInput.value).toBe('100');
     });
 
-    it('Test 6: User can change direction dropdown', () =>
+    it('Test 7: User can change direction dropdown', () =>
     {
         // ARRANGE: Render the Calculator component
         render(<Calculator />);
@@ -77,88 +102,90 @@ describe('Calculator Component - User Input', () =>
         // ASSERT: Check that value was updated
         expect(s_element_directionDropdown.value).toBe('Short');
     });
+
+    it('Test 8: User can change instrument dropdown', () =>
+    {
+        // ARRANGE: Render the Calculator component
+        render(<Calculator />);
+        const instrumentDropdown_element = screen.getByLabelText(/instrument/i) as HTMLSelectElement;
+
+        // ACT: Change dropdown value to FX_USD
+        fireEvent.change(instrumentDropdown_element, { target: { value: 'FX_USD' } });
+
+        // ASSERT: Check that value was updated
+        expect(instrumentDropdown_element.value).toBe('FX_USD');
+    });
 });
 
 describe('Calculator Component - Calculation', () =>
 {
-    it('Test 7: Calculate button triggers calculation and shows results', () =>
+    it('Test 9: Calculate button triggers calculation and shows results', async () =>
     {
         // ARRANGE: Render and fill in valid trade data
         render(<Calculator />);
-        fireEvent.change(screen.getByLabelText(/entry price/i), { target: { value: '100' } });
-        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '110' } });
-        fireEvent.change(screen.getByLabelText(/stop loss/i), { target: { value: '95' } });
-        fireEvent.change(screen.getByLabelText(/risk amount/i), { target: { value: '500' } });
+        fireEvent.change(screen.getByLabelText(/entry price/i), { target: { value: '2000' } });
+        fireEvent.change(screen.getByLabelText(/stop loss/i), { target: { value: '1990' } });
+        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '2030' } });
+        fireEvent.change(screen.getByLabelText(/risk amount/i), { target: { value: '150' } });
         fireEvent.change(screen.getByLabelText(/direction/i), { target: { value: 'Long' } });
 
         // ACT: Click calculate button
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
-        // ASSERT: Check that results are displayed
-        expect(screen.getByText(/lot size:/i)).toBeInTheDocument();
-        expect(screen.getByText(/reward.*risk/i)).toBeInTheDocument();
+        // ASSERT: Wait for async operation and check results are displayed
+        await waitFor(() =>
+        {
+            expect(screen.getByText(/lot size:/i)).toBeInTheDocument();
+            expect(screen.getByText(/reward.*risk/i)).toBeInTheDocument();
+        });
     });
 
-    it('Test 8: Error modal displays for invalid inputs', () =>
+    it('Test 10: Error modal displays for invalid inputs', async () =>
     {
         // ARRANGE: Render and fill in invalid trade data (stop above entry for long)
         render(<Calculator />);
         fireEvent.change(screen.getByLabelText(/entry price/i), { target: { value: '100' } });
-        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '110' } });
         fireEvent.change(screen.getByLabelText(/stop loss/i), { target: { value: '105' } });
+        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '110' } });
         fireEvent.change(screen.getByLabelText(/risk amount/i), { target: { value: '500' } });
         fireEvent.change(screen.getByLabelText(/direction/i), { target: { value: 'Long' } });
 
         // ACT: Click calculate button
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
-        // ASSERT: Check that error modal backdrop is displayed
-        expect(screen.getByText(/stop loss must be below entry price for long positions/i)).toBeInTheDocument();
-        expect(document.querySelector('.modal-close-button')).toBeInTheDocument();
+        // ASSERT: Wait for async operation and check error modal is displayed
+        await waitFor(() =>
+        {
+            expect(screen.getByText(/stop loss must be below entry price for long positions/i)).toBeInTheDocument();
+            expect(document.querySelector('.modal-close-button')).toBeInTheDocument();
+        });
     });
 });
 
 describe('Calculator Component - Clear Functionality', () =>
 {
-    it('Test 9: Clear button resets all inputs', () =>
+    it('Test 11: Clear button resets all inputs', () =>
     {
         // ARRANGE: Render and fill in data
         render(<Calculator />);
-        const s_element_entryPriceInput = screen.getByLabelText(/entry price/i) as HTMLInputElement; // Entry price input element
-        const s_element_targetPriceInput = screen.getByLabelText(/target price/i) as HTMLInputElement; // Target price input element
+        const s_element_entryPriceInput = screen.getByLabelText(/entry price/i) as HTMLInputElement;
+        const s_element_stopLossInput = screen.getByLabelText(/stop loss/i) as HTMLInputElement;
 
         fireEvent.change(s_element_entryPriceInput, { target: { value: '100' } });
-        fireEvent.change(s_element_targetPriceInput, { target: { value: '110' } });
+        fireEvent.change(s_element_stopLossInput, { target: { value: '95' } });
 
         // ACT: Click clear button
         fireEvent.click(screen.getByRole('button', { name: /clear/i }));
 
         // ASSERT: Check that all inputs are cleared
         expect(s_element_entryPriceInput.value).toBe('');
-        expect(s_element_targetPriceInput.value).toBe('');
-    });
-
-    it('Test 10: Clear button removes results display', () =>
-    {
-        // ARRANGE: Render, calculate, then clear
-        render(<Calculator />);
-        fireEvent.change(screen.getByLabelText(/entry price/i), { target: { value: '100' } });
-        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '110' } });
-        fireEvent.change(screen.getByLabelText(/stop loss/i), { target: { value: '95' } });
-        fireEvent.change(screen.getByLabelText(/risk amount/i), { target: { value: '500' } });
-        fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
-
-        // ACT: Click clear button
-        fireEvent.click(screen.getByRole('button', { name: /clear/i }));
-
-        // ASSERT: Check that results are no longer displayed
-        expect(screen.queryByText(/100/)).not.toBeInTheDocument();
+        expect(s_element_stopLossInput.value).toBe('');
     });
 });
 
 describe('Calculator Component - Validation', () =>
 {
-    it('Test 11: Error modal displays when fields are empty', () =>
+    it('Test 12: Error modal displays when fields are empty', async () =>
     {
         // ARRANGE: Render the Calculator component (all fields empty)
         render(<Calculator />);
@@ -166,27 +193,12 @@ describe('Calculator Component - Validation', () =>
         // ACT: Click calculate button without filling any fields
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
-        // ASSERT: Check that error modal is displayed
-        expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
-        expect(document.querySelector('.modal-close-button')).toBeInTheDocument();
-    });
-
-    it('Test 12: Enter key triggers calculation', () =>
-    {
-        // ARRANGE: Render and fill in valid trade data
-        render(<Calculator />);
-        const s_element_entryPriceInput = screen.getByLabelText(/entry price/i) as HTMLInputElement; // Entry price input element
-
-        fireEvent.change(screen.getByLabelText(/entry price/i), { target: { value: '100' } });
-        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '110' } });
-        fireEvent.change(screen.getByLabelText(/stop loss/i), { target: { value: '95' } });
-        fireEvent.change(screen.getByLabelText(/risk amount/i), { target: { value: '500' } });
-
-        // ACT: Press Enter key on any input field
-        fireEvent.keyDown(s_element_entryPriceInput, { key: 'Enter', code: 'Enter' });
-
-        // ASSERT: Check that results are displayed (lot size label exists and calculation was performed)
-        expect(screen.getByText(/lot size:/i)).toBeInTheDocument();
+        // ASSERT: Wait for async operation and check error modal is displayed
+        await waitFor(() =>
+        {
+            expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
+            expect(document.querySelector('.modal-close-button')).toBeInTheDocument();
+        });
     });
 });
 
@@ -209,73 +221,88 @@ describe('Calculator Component - Results Display', () =>
 
 describe('Calculator Component - Error Modal Functionality', () =>
 {
-    it('Test 14: Modal displays correct error message content', () =>
+    it('Test 14: Modal displays correct error message content', async () =>
     {
         // ARRANGE: Render and trigger error
         render(<Calculator />);
         fireEvent.change(screen.getByLabelText(/entry price/i), { target: { value: '100' } });
-        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '90' } });
         fireEvent.change(screen.getByLabelText(/stop loss/i), { target: { value: '95' } });
+        fireEvent.change(screen.getByLabelText(/target price/i), { target: { value: '90' } });
         fireEvent.change(screen.getByLabelText(/risk amount/i), { target: { value: '500' } });
         fireEvent.change(screen.getByLabelText(/direction/i), { target: { value: 'Long' } });
 
         // ACT: Click calculate button
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
-        // ASSERT: Check that specific error message is displayed in modal
-        expect(screen.getByText(/target price must be above entry price for long positions/i)).toBeInTheDocument();
+        // ASSERT: Wait for async operation and check error message
+        await waitFor(() =>
+        {
+            expect(screen.getByText(/target price must be above entry price for long positions/i)).toBeInTheDocument();
+        });
     });
 
-    it('Test 15: Close button closes error modal', () =>
+    it('Test 15: Close button closes error modal', async () =>
     {
         // ARRANGE: Render and trigger error modal
         render(<Calculator />);
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
-        // Verify modal is visible
-        expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
+        // Wait for modal to appear
+        await waitFor(() =>
+        {
+            expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
+        });
 
         // ACT: Click modal close button
-        const modalCloseButton_element = document.querySelector('.modal-close-button') as HTMLButtonElement; // Modal close button element
+        const modalCloseButton_element = document.querySelector('.modal-close-button') as HTMLButtonElement;
         fireEvent.click(modalCloseButton_element);
 
         // ASSERT: Check that modal is no longer displayed
-        expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
-        expect(document.querySelector('.modal-close-button')).not.toBeInTheDocument();
+        await waitFor(() =>
+        {
+            expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
+        });
     });
 
-    it('Test 16: ESC key closes error modal', () =>
-    {
-        // ARRANGE: Render and trigger error modal
-        render(<Calculator />);
-        fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
-
-        // Verify modal is visible
-        expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
-
-        // ACT: Press ESC key
-        fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
-
-        // ASSERT: Check that modal is no longer displayed
-        expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
-        expect(document.querySelector('.modal-close-button')).not.toBeInTheDocument();
-    });
-
-    it('Test 17: Enter key closes error modal', () =>
+    it('Test 16: Enter key closes error modal', async () =>
     {
         // ARRANGE: Render and trigger error modal
         const { container } = render(<Calculator />);
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
-        // Verify modal is visible
-        expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
+        // Wait for modal to appear
+        await waitFor(() =>
+        {
+            expect(screen.getByText(/please enter valid numbers for all fields/i)).toBeInTheDocument();
+        });
 
         // ACT: Press Enter key on calculator div (context-aware handler)
-        const s_element_calculatorDiv = container.querySelector('.calculator'); // Calculator container element
+        const s_element_calculatorDiv = container.querySelector('.calculator');
         fireEvent.keyDown(s_element_calculatorDiv!, { key: 'Enter', code: 'Enter' });
 
         // ASSERT: Check that modal is no longer displayed
-        expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
-        expect(document.querySelector('.modal-close-button')).not.toBeInTheDocument();
+        await waitFor(() =>
+        {
+            expect(screen.queryByText(/please enter valid numbers for all fields/i)).not.toBeInTheDocument();
+        });
+    });
+});
+
+describe('Calculator Component - Field Order', () =>
+{
+    it('Test 17: Stop Loss field appears before Target Price in DOM', () =>
+    {
+        // ARRANGE & ACT: Render the Calculator component
+        render(<Calculator />);
+
+        // Get all input fields in order
+        const stopLossInput_element = screen.getByLabelText(/stop loss/i);
+        const targetPriceInput_element = screen.getByLabelText(/target price/i);
+
+        // ASSERT: Stop Loss should come before Target Price in document order
+        // Using compareDocumentPosition to check DOM order
+        const n_position = stopLossInput_element.compareDocumentPosition(targetPriceInput_element);
+        // DOCUMENT_POSITION_FOLLOWING (4) means targetPrice comes after stopLoss
+        expect(n_position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });

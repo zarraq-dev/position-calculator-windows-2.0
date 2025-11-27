@@ -7,6 +7,24 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 
 /**
+ * Frankfurter API response structure
+ */
+interface FrankfurterResponse
+{
+    amount: number;
+    base: string;
+    date: string;
+    rates: Record<string, number>;
+}
+
+/**
+ * Cache for exchange rates to avoid excessive API calls
+ */
+let cachedExchangeRatesToGBP: Record<string, number> | null = null;
+let n_cacheTimestamp: number = 0;
+const N_CACHE_DURATION_MS: number = 15 * 60 * 1000; // 15 minutes
+
+/**
  * Creates the main application window
  * Window is resizable by default and uses dark theme
  */
@@ -14,9 +32,9 @@ function createWindow(): void
 {
     const mainWindow_instance: BrowserWindow = new BrowserWindow({
         width: 290, // Initial window width
-        height: 420, // Initial window height (increased for close button)
+        height: 450, // Initial window height (increased to remove scrollbar)
         minWidth: 270, // Minimum window width
-        minHeight: 380, // Minimum window height
+        minHeight: 410, // Minimum window height
         resizable: true, // Window is resizable (default, but explicit for clarity)
         transparent: true, // Enable window transparency
         frame: false, // Remove window frame for custom look
@@ -45,6 +63,62 @@ ipcMain.on('close-window', () =>
     if (focusedWindow_instance)
     {
         focusedWindow_instance.close(); // Close the window
+    }
+});
+
+/**
+ * Handle fetch exchange rates IPC request from renderer
+ * Fetches rates from Frankfurter API and returns them to renderer
+ */
+ipcMain.handle('fetch-exchange-rates', async (): Promise<Record<string, number>> =>
+{
+    // Check if cache is still valid
+    const n_currentTime: number = Date.now();
+    if (cachedExchangeRatesToGBP !== null && (n_currentTime - n_cacheTimestamp) < N_CACHE_DURATION_MS)
+    {
+        return cachedExchangeRatesToGBP;
+    }
+
+    // Frankfurter API endpoint
+    const s_apiUrl: string = 'https://api.frankfurter.app/latest?from=GBP&to=USD,JPY,CHF';
+
+    try
+    {
+        // Use Node.js fetch (available in Electron's main process)
+        const httpResponse: Response = await fetch(s_apiUrl);
+
+        if (!httpResponse.ok)
+        {
+            throw new Error(`API request failed with status ${httpResponse.status}`);
+        }
+
+        const frankfurterResponse: FrankfurterResponse = await httpResponse.json();
+
+        // Convert rates: API gives GBP->X, we need X->GBP
+        const exchangeRatesToGBP: Record<string, number> =
+        {
+            'USD': 1 / frankfurterResponse.rates['USD'],
+            'JPY': 1 / frankfurterResponse.rates['JPY'],
+            'CHF': 1 / frankfurterResponse.rates['CHF'],
+            'GBP': 1.0
+        };
+
+        // Update cache
+        cachedExchangeRatesToGBP = exchangeRatesToGBP;
+        n_cacheTimestamp = n_currentTime;
+
+        return exchangeRatesToGBP;
+    }
+    catch (error)
+    {
+        // If API fails and we have cached rates, use them
+        if (cachedExchangeRatesToGBP !== null)
+        {
+            console.warn('Failed to fetch fresh rates, using cached rates:', error);
+            return cachedExchangeRatesToGBP;
+        }
+
+        throw new Error(`Failed to fetch exchange rates: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 });
 
