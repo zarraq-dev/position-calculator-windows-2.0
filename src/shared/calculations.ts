@@ -1,9 +1,18 @@
 /**
  * Position Size Calculator - Business Logic
  * Contains all calculation functions for position sizing
+ *
+ * Core Formulas:
+ * 1. price_diff = |stop_loss_price - entry_price| (price difference vs stop loss)
+ * 2. lot_size = risk_amount / (price_diff * contract_size)
+ * 3. quantity = lot_size * contract_size
+ * 4. risk = price_diff * quantity (should match user's intended risk)
+ * 5. reward = |take_profit_price - entry_price| * quantity
+ * 6. risk_reward_ratio = reward / risk
  */
 
-import type { TradeInput, CalculationResult, CalculationError } from './types';
+import type { TradeInput, CalculationResult, CalculationError, InstrumentType } from './types';
+import { INSTRUMENT_CONFIGS } from './types';
 
 /**
  * Rounds a number to a specified number of decimal places
@@ -17,12 +26,12 @@ import type { TradeInput, CalculationResult, CalculationError } from './types';
  *
  * Example: Round 1.23456 to 2 decimals
  * - Shifter = 10^2 = 100
- * - Multiply: 1.23456 × 100 = 123.456
+ * - Multiply: 1.23456 * 100 = 123.456
  * - Round: Math.round(123.456) = 123
  * - Divide: 123 / 100 = 1.23
  *
  * @param n_value - The number to round
- * @param n_decimals - Number of decimal places to preserve (9 for crypto precision)
+ * @param n_decimals - Number of decimal places to preserve
  * @returns Rounded number with specified decimal precision
  */
 function roundToDecimals(n_value: number, n_decimals: number): number
@@ -121,8 +130,10 @@ function validateInputs(tradeInput_data: TradeInput): CalculationError | null
 }
 
 /**
- * Calculate position size and related metrics
- * @param tradeInput_data - Trade input data containing prices and risk amount
+ * Calculate lot size, quantity, risk, reward, and risk-reward ratio
+ * Uses instrument-specific contract sizes for accurate position sizing
+ *
+ * @param tradeInput_data - Trade input data containing prices, risk amount, and instrument
  * @returns CalculationResult on success, CalculationError on validation failure
  */
 export function calculatePosition(tradeInput_data: TradeInput): CalculationResult | CalculationError
@@ -132,6 +143,7 @@ export function calculatePosition(tradeInput_data: TradeInput): CalculationResul
     const n_targetPrice: number = tradeInput_data.n_targetPrice; // Target price for profit
     const n_stopLoss: number = tradeInput_data.n_stopLoss; // Stop loss price
     const n_riskAmount: number = tradeInput_data.n_riskAmount; // Amount willing to risk
+    const s_instrument: InstrumentType = tradeInput_data.s_instrument; // Trading instrument
 
     // STEP 2: Validate inputs
     const validationError = validateInputs(tradeInput_data);
@@ -140,29 +152,35 @@ export function calculatePosition(tradeInput_data: TradeInput): CalculationResul
         return validationError;
     }
 
-    // STEP 3: Calculate risk per share (distance from entry to stop loss)
-    const n_riskPerShare: number = Math.abs(n_entryPrice - n_stopLoss); // Risk per share/unit
+    // STEP 3: Get instrument configuration
+    const instrumentConfig = INSTRUMENT_CONFIGS[s_instrument]; // Get contract size and leverage for instrument
+    const n_contractSize: number = instrumentConfig.n_contractSize; // Contract size for the instrument
 
-    // STEP 4: Calculate position size (round to 9 decimals for crypto precision)
-    const n_positionSize: number = roundToDecimals(n_riskAmount / n_riskPerShare, 9); // Number of shares/units to buy
+    // STEP 4: Calculate price difference (price_diff = |stop_loss_price - entry_price|)
+    const n_priceDifference: number = Math.abs(n_stopLoss - n_entryPrice); // Price difference from entry to stop loss
 
-    // STEP 5: Calculate reward per share (distance from entry to target)
-    const n_rewardPerShare: number = Math.abs(n_targetPrice - n_entryPrice); // Reward per share/unit
+    // STEP 5: Calculate lot size (lot_size = risk_amount / (price_diff * contract_size))
+    const n_lotSize: number = roundToDecimals(n_riskAmount / (n_priceDifference * n_contractSize), 2); // Lot size rounded to 2 decimals
 
-    // STEP 6: Calculate reward:risk ratio
-    const n_rewardRiskRatio: number = n_rewardPerShare / n_riskPerShare; // Ratio of reward to risk
+    // STEP 6: Calculate quantity (quantity = lot_size * contract_size)
+    const n_quantity: number = roundToDecimals(n_lotSize * n_contractSize, 2); // Quantity rounded to 2 decimals
 
-    // STEP 7: Calculate potential profit
-    const n_potentialProfit: number = n_positionSize * n_rewardPerShare; // Total potential profit
+    // STEP 7: Calculate risk (risk = price_diff * quantity) - should match user's intended risk
+    const n_risk: number = roundToDecimals(n_priceDifference * n_quantity, 2); // Actual risk amount
 
-    // STEP 8: Potential loss equals risk amount (by definition)
-    const n_potentialLoss: number = n_riskAmount; // Total potential loss
+    // STEP 8: Calculate reward (reward = |take_profit_price - entry_price| * quantity)
+    const n_rewardPriceDifference: number = Math.abs(n_targetPrice - n_entryPrice); // Price difference from entry to target
+    const n_reward: number = roundToDecimals(n_rewardPriceDifference * n_quantity, 2); // Reward amount
 
-    // STEP 9: Return successful calculation result
+    // STEP 9: Calculate risk-reward ratio (risk_reward_ratio = reward / risk)
+    const n_rewardRiskRatio: number = roundToDecimals(n_reward / n_risk, 2); // Risk-reward ratio
+
+    // STEP 10: Return successful calculation result
     return {
-        n_positionSize: n_positionSize,
-        n_rewardRiskRatio: n_rewardRiskRatio,
-        n_potentialProfit: n_potentialProfit,
-        n_potentialLoss: n_potentialLoss
+        n_lotSize: n_lotSize,
+        n_quantity: n_quantity,
+        n_risk: n_risk,
+        n_reward: n_reward,
+        n_rewardRiskRatio: n_rewardRiskRatio
     };
 }

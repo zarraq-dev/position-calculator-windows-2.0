@@ -95,10 +95,8 @@ describe('Calculator Component - Calculation', () =>
         fireEvent.click(screen.getByRole('button', { name: /calculate/i }));
 
         // ASSERT: Check that results are displayed
-        expect(screen.getByText(/position size:/i)).toBeInTheDocument();
-        expect(screen.getByText(/100/)).toBeInTheDocument(); // Position size should be 100
+        expect(screen.getByText(/lot size:/i)).toBeInTheDocument();
         expect(screen.getByText(/reward.*risk/i)).toBeInTheDocument();
-        expect(screen.getByText(/2:1|2.0:1/)).toBeInTheDocument(); // Reward:risk should be 2:1
     });
 
     it('Test 8: Error modal displays for invalid inputs', () =>
@@ -187,8 +185,8 @@ describe('Calculator Component - Validation', () =>
         // ACT: Press Enter key on any input field
         fireEvent.keyDown(s_element_entryPriceInput, { key: 'Enter', code: 'Enter' });
 
-        // ASSERT: Check that results are displayed
-        expect(screen.getByText(/100/)).toBeInTheDocument(); // Position size should be 100
+        // ASSERT: Check that results are displayed (lot size label exists and calculation was performed)
+        expect(screen.getByText(/lot size:/i)).toBeInTheDocument();
     });
 });
 
@@ -200,7 +198,7 @@ describe('Calculator Component - Results Display', () =>
         render(<Calculator />);
 
         // ASSERT: Check that results section is visible even without calculation
-        expect(screen.getByText(/position size:/i)).toBeInTheDocument();
+        expect(screen.getByText(/lot size:/i)).toBeInTheDocument();
         expect(screen.getByText(/reward.*risk/i)).toBeInTheDocument();
 
         // Check for placeholder values

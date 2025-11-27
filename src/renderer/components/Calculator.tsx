@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { calculatePosition } from '../../shared/calculations';
-import type { TradeDirection, CalculationResult, CalculationError } from '../../shared/types';
+import type { TradeDirection, InstrumentType, CalculationResult, CalculationError } from '../../shared/types';
 import InputField from './InputField';
 import ErrorModal from './ErrorModal';
 
@@ -21,6 +21,7 @@ export default function Calculator(): React.ReactElement
     const [s_stopLoss, setStopLoss] = useState<string>(''); // Stop loss input value
     const [s_riskAmount, setRiskAmount] = useState<string>(''); // Risk amount input value
     const [s_direction, setDirection] = useState<TradeDirection>('Long'); // Trade direction
+    const [s_instrument, setInstrument] = useState<InstrumentType>('XAUUSD'); // Trading instrument
 
     // STEP 2: Define state for calculation results
     const [calculationResult_data, setCalculationResult] = useState<CalculationResult | null>(null); // Calculation results
@@ -38,7 +39,7 @@ export default function Calculator(): React.ReactElement
     }, []); // Empty dependency array - runs once on mount
 
     // Array of input field IDs in order for arrow key navigation
-    const array_s_fieldIds: string[] = ['entryPrice', 'targetPrice', 'stopLoss', 'riskAmount', 'direction'];
+    const array_s_fieldIds: string[] = ['instrument', 'entryPrice', 'targetPrice', 'stopLoss', 'riskAmount', 'direction'];
 
     // STEP 3: Handle arrow key navigation between input fields
     const handleArrowNavigation = (event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>): void =>
@@ -106,7 +107,8 @@ export default function Calculator(): React.ReactElement
             n_targetPrice,
             n_stopLoss,
             n_riskAmount,
-            s_direction
+            s_direction,
+            s_instrument
         });
 
         // Check if result is an error
@@ -146,6 +148,7 @@ export default function Calculator(): React.ReactElement
         setStopLoss('');
         setRiskAmount('');
         setDirection('Long');
+        setInstrument('XAUUSD');
         setCalculationResult(null);
         setErrorMessage('');
         setShowErrorModal(false);
@@ -185,6 +188,23 @@ export default function Calculator(): React.ReactElement
 
             {/* Input Fields Section */}
             <div className="inputs-section">
+                {/* Instrument Dropdown */}
+                <div className="input-group">
+                    <label htmlFor="instrument">Instrument:</label>
+                    <select
+                        id="instrument"
+                        value={s_instrument}
+                        onChange={(e) => setInstrument(e.target.value as InstrumentType)}
+                        onKeyDown={handleArrowNavigation}
+                    >
+                        <option value="EURUSD">EURUSD</option>
+                        <option value="XAUUSD">XAUUSD</option>
+                        <option value="XAGUSD">XAGUSD</option>
+                        <option value="WTI">WTI</option>
+                        <option value="UKOIL">UKOIL</option>
+                    </select>
+                </div>
+
                 <InputField
                     s_label="Entry Price"
                     s_id="entryPrice"
@@ -246,9 +266,9 @@ export default function Calculator(): React.ReactElement
             <div className="results-section">
                 <h2>Results</h2>
                 <div className="result-item">
-                    <span className="result-label">Position Size:</span>
+                    <span className="result-label">Lot Size:</span>
                     <span className="result-value">
-                        {calculationResult_data ? calculationResult_data.n_positionSize : '--'}
+                        {calculationResult_data ? calculationResult_data.n_lotSize : '--'}
                     </span>
                 </div>
                 <div className="result-item">

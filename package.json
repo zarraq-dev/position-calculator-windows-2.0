@@ -1,6 +1,6 @@
 {
   "name": "position-calculator-windows-2.0",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Position size calculator for trading",
   "main": "dist/main/main.js",
   "scripts": {
