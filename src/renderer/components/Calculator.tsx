@@ -103,11 +103,11 @@ export default function Calculator(): React.ReactElement
 
         try
         {
-            // Parse input values to numbers
-            const n_entryPrice: number = parseFloat(s_entryPrice); // Parsed entry price
-            const n_targetPrice: number = parseFloat(s_targetPrice); // Parsed target price
-            const n_stopLoss: number = parseFloat(s_stopLoss); // Parsed stop loss
-            const n_riskAmount: number = parseFloat(s_riskAmount); // Parsed risk amount (in GBP)
+            // Parse input values to numbers (strip whitespace and commas for formats like "6 1234" or "6,1234")
+            const n_entryPrice: number = parseFloat(s_entryPrice.replace(/[\s,]/g, ''));
+            const n_targetPrice: number = parseFloat(s_targetPrice.replace(/[\s,]/g, ''));
+            const n_stopLoss: number = parseFloat(s_stopLoss.replace(/[\s,]/g, ''));
+            const n_riskAmount: number = parseFloat(s_riskAmount.replace(/[\s,]/g, ''));
 
             // Validate that all inputs are valid numbers
             if (isNaN(n_entryPrice) || isNaN(n_targetPrice) || isNaN(n_stopLoss) || isNaN(n_riskAmount))
@@ -319,6 +319,12 @@ export default function Calculator(): React.ReactElement
                     <span className="result-label">Lot Size:</span>
                     <span className="result-value">
                         {calculationResult_data ? calculationResult_data.n_lotSize : '--'}
+                    </span>
+                </div>
+                <div className="result-item">
+                    <span className="result-label">Take Profit:</span>
+                    <span className="result-value">
+                        {calculationResult_data ? s_targetPrice : '--'}
                     </span>
                 </div>
                 <div className="result-item">

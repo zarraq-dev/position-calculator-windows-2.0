@@ -32,9 +32,9 @@ function createWindow(): void
 {
     const mainWindow_instance: BrowserWindow = new BrowserWindow({
         width: 290, // Initial window width
-        height: 450, // Initial window height (increased to remove scrollbar)
+        height: 475, // Initial window height (increased for Take Profit result)
         minWidth: 270, // Minimum window width
-        minHeight: 410, // Minimum window height
+        minHeight: 435, // Minimum window height
         resizable: true, // Window is resizable (default, but explicit for clarity)
         transparent: true, // Enable window transparency
         frame: false, // Remove window frame for custom look
