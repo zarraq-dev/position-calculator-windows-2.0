@@ -18,11 +18,53 @@ interface FrankfurterResponse
 }
 
 /**
- * Cache for exchange rates to avoid excessive API calls
+ * Cache for exchange rates (fetched once on app startup)
+ * Frankfurter API provides daily rates, so no need for frequent updates
  */
 let cachedExchangeRatesToGBP: Record<string, number> | null = null;
-let n_cacheTimestamp: number = 0;
-const N_CACHE_DURATION_MS: number = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Fetches exchange rates from Frankfurter API and caches them
+ * Called once on app startup - rates are cached for entire session
+ */
+async function prefetchExchangeRates(): Promise<void>
+{
+    // Frankfurter API endpoint - fetches latest rates with GBP as base currency
+    const s_apiUrl: string = 'https://api.frankfurter.app/latest?from=GBP&to=USD,JPY,CHF';
+
+    try
+    {
+        // Make HTTP request to Frankfurter API
+        const httpResponse: Response = await fetch(s_apiUrl);
+
+        // Check if request was successful
+        if (!httpResponse.ok)
+        {
+            throw new Error(`API request failed with status ${httpResponse.status}`);
+        }
+
+        // Parse JSON response
+        const frankfurterResponse: FrankfurterResponse = await httpResponse.json();
+
+        // Convert rates: API gives GBP->X, we need X->GBP (inverse)
+        // Example: If API returns GBP->USD = 1.27, we need USD->GBP = 1/1.27 = 0.787
+        cachedExchangeRatesToGBP =
+        {
+            'USD': 1 / frankfurterResponse.rates['USD'], // USD to GBP rate
+            'JPY': 1 / frankfurterResponse.rates['JPY'], // JPY to GBP rate
+            'CHF': 1 / frankfurterResponse.rates['CHF'], // CHF to GBP rate
+            'GBP': 1.0 // GBP to GBP is always 1
+        };
+
+        console.log('Exchange rates fetched successfully:', cachedExchangeRatesToGBP);
+    }
+    catch (error)
+    {
+        // Log error but don't crash - rates will be null
+        console.error('Failed to fetch exchange rates on startup:', error);
+        // Calculations will fail gracefully with user-friendly error message
+    }
+}
 
 /**
  * Creates the main application window
@@ -68,63 +110,24 @@ ipcMain.on('close-window', () =>
 
 /**
  * Handle fetch exchange rates IPC request from renderer
- * Fetches rates from Frankfurter API and returns them to renderer
+ * Returns cached rates (pre-fetched on app startup)
  */
-ipcMain.handle('fetch-exchange-rates', async (): Promise<Record<string, number>> =>
+ipcMain.handle('fetch-exchange-rates', (): Record<string, number> =>
 {
-    // Check if cache is still valid
-    const n_currentTime: number = Date.now();
-    if (cachedExchangeRatesToGBP !== null && (n_currentTime - n_cacheTimestamp) < N_CACHE_DURATION_MS)
+    if (cachedExchangeRatesToGBP === null)
     {
-        return cachedExchangeRatesToGBP;
+        throw new Error('Exchange rates not available. Please restart the application.');
     }
 
-    // Frankfurter API endpoint
-    const s_apiUrl: string = 'https://api.frankfurter.app/latest?from=GBP&to=USD,JPY,CHF';
-
-    try
-    {
-        // Use Node.js fetch (available in Electron's main process)
-        const httpResponse: Response = await fetch(s_apiUrl);
-
-        if (!httpResponse.ok)
-        {
-            throw new Error(`API request failed with status ${httpResponse.status}`);
-        }
-
-        const frankfurterResponse: FrankfurterResponse = await httpResponse.json();
-
-        // Convert rates: API gives GBP->X, we need X->GBP
-        const exchangeRatesToGBP: Record<string, number> =
-        {
-            'USD': 1 / frankfurterResponse.rates['USD'],
-            'JPY': 1 / frankfurterResponse.rates['JPY'],
-            'CHF': 1 / frankfurterResponse.rates['CHF'],
-            'GBP': 1.0
-        };
-
-        // Update cache
-        cachedExchangeRatesToGBP = exchangeRatesToGBP;
-        n_cacheTimestamp = n_currentTime;
-
-        return exchangeRatesToGBP;
-    }
-    catch (error)
-    {
-        // If API fails and we have cached rates, use them
-        if (cachedExchangeRatesToGBP !== null)
-        {
-            console.warn('Failed to fetch fresh rates, using cached rates:', error);
-            return cachedExchangeRatesToGBP;
-        }
-
-        throw new Error(`Failed to fetch exchange rates: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    return cachedExchangeRatesToGBP;
 });
 
 // Create window when Electron is ready
-app.whenReady().then(() =>
+app.whenReady().then(async () =>
 {
+    // Pre-fetch exchange rates on startup (Frankfurter API provides daily rates)
+    await prefetchExchangeRates();
+
     createWindow();
 
     // On macOS, recreate window when dock icon is clicked and no windows exist
